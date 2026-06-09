@@ -1,0 +1,35 @@
+# Secrets
+.env
+
+# Generated outputs (cleared each run; accepted resumes go to archive/)
+output/
+archive/
+
+# Default JD input file (personal per-use)
+jd.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/
+
+# Personal profile data (user-specific, never commit)
+profile/*.json
