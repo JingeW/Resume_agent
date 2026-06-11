@@ -49,7 +49,12 @@ def format_projects_block(projects: list) -> str:
     for proj in projects:
         escaped_title = escape_latex(proj["title"])
         escaped_subtitle = escape_latex(proj["subtitle"])
-        heading = rf"\textbf{{{escaped_title}}} $|$ \emph{{{escaped_subtitle}}}"
+        url = proj.get("url", "").strip()
+        if url:
+            title_part = rf"\href{{{url}}}{{\textbf{{{escaped_title}}}}}"
+        else:
+            title_part = rf"\textbf{{{escaped_title}}}"
+        heading = rf"{title_part} $|$ \emph{{{escaped_subtitle}}}"
         # Bullets are already LaTeX-escaped in JSON
         bullet_lines = "\n      ".join(rf"\resumeItem{{{b}}}" for b in proj["bullets"])
         block = (
@@ -105,6 +110,9 @@ def format_certifications_list(certs: list) -> str:
         year = cert["year"]
         title = escape_latex(cert["title"])
         issuer = escape_latex(cert["issuer"])
+        url = cert.get("url", "").strip()
+        if url:
+            title = f"\\href{{{url}}}{{{title}}}"
         line = f"\\item \\small{{{year} \\quad {title} --- {issuer}}}"
         lines.append(line)
     return "\n    ".join(lines)
@@ -130,6 +138,7 @@ def build_placeholders(content: dict) -> dict:
         "NAME":         escape_latex(identity["name"]),
         "PHONE":        escape_latex(identity["phone"]),
         "EMAIL":        identity["email"],
+        "WEBSITE_URL":  identity["website"],
         "LINKEDIN_URL": identity["linkedin_url"],
         "GITHUB_URL":   identity["github_url"],
         "SCHOLAR_URL":  identity["google_scholar_url"],

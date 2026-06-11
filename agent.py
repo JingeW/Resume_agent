@@ -378,6 +378,7 @@ def select_projects(role_type: str, jd_text_lower: str, projects_data: dict) -> 
             "id":           proj["id"],
             "title":        proj["title"],
             "subtitle":     proj["subtitle"],
+            "url":          proj.get("url", ""),
             "bullets":      bullets,
             "all_variants": avail,
             "variant":      variant,
