@@ -23,6 +23,11 @@ def main():
         help="Path to a plain-text (.txt) file containing the job description. "
              "Defaults to jd.txt in the project root if it exists; reads from stdin otherwise.",
     )
+    parser.add_argument(
+        "--no-links",
+        action="store_true",
+        help="Remove all hyperlinks from the PDF (for portals that block active contents).",
+    )
     args = parser.parse_args()
 
     # Resolve JD source: explicit flag → default jd.txt → stdin
@@ -64,7 +69,7 @@ def main():
 
     # Compile to PDF
     print()
-    pdf_path = renderer.render(content, OUTPUT_DIR, TEMPLATE_PATH)
+    pdf_path = renderer.render(content, OUTPUT_DIR, TEMPLATE_PATH, no_links=args.no_links)
 
     print(f"\nResume saved to {pdf_path}")
 
@@ -73,7 +78,8 @@ def main():
         return re.sub(r"[^A-Za-z0-9]", "_", s.strip()).strip("_")
     profile_name     = content.get("identity", {}).get("name", "Resume")
     canonical_stem   = _clean(profile_name)
-    canonical_fname  = f"{canonical_stem}_Resume.pdf"
+    nolinks_tag      = "_nolinks" if args.no_links else ""
+    canonical_fname  = f"{canonical_stem}_Resume{nolinks_tag}.pdf"
 
     # Offer to rename to the canonical filename and archive a copy
     rename_dest = Path(pdf_path).parent / canonical_fname
@@ -88,7 +94,7 @@ def main():
         suffix = "_".join(p for p in [company, job_title] if p)
         if suffix:
             ARCHIVE_DIR.mkdir(exist_ok=True)
-            archive_name = f"{canonical_stem}_Resume_{suffix}.pdf"
+            archive_name = f"{canonical_stem}_Resume_{suffix}{nolinks_tag}.pdf"
             shutil.copy2(pdf_path, str(ARCHIVE_DIR / archive_name))
             print(f"Archived  -> archive/{archive_name}")
         Path(pdf_path).replace(rename_dest)

@@ -129,21 +129,31 @@ def format_awards_list(awards: list) -> str:
     return "\n    ".join(lines)
 
 
-def build_placeholders(content: dict) -> dict:
+def build_placeholders(content: dict, no_links: bool = False) -> dict:
     """Map all <<PLACEHOLDER>> keys to their rendered string values."""
     identity = content["identity"]
     experience = content["experience"]
 
+    if no_links:
+        href_override = r"\renewcommand{\href}[2]{#2}"
+        scholar_entry = ""
+    else:
+        href_override = ""
+        scholar_entry = (
+            r" $|$ \href{" + identity["google_scholar_url"] + r"}{\underline{Google Scholar}}"
+        )
+
     placeholders = {
-        "NAME":         escape_latex(identity["name"]),
-        "PHONE":        escape_latex(identity["phone"]),
-        "EMAIL":        identity["email"],
-        "WEBSITE_URL":  identity["website"],
-        "LINKEDIN_URL": identity["linkedin_url"],
-        "GITHUB_URL":   identity["github_url"],
-        "SCHOLAR_URL":  identity["google_scholar_url"],
-        "SUMMARY":      escape_latex(content["summary"]),
-        "SKILLS_LINES": format_skills_lines(content["skills"]),
+        "NAME":          escape_latex(identity["name"]),
+        "PHONE":         escape_latex(identity["phone"]),
+        "EMAIL":         identity["email"],
+        "WEBSITE_URL":   identity["website"],
+        "LINKEDIN_URL":  identity["linkedin_url"],
+        "GITHUB_URL":    identity["github_url"],
+        "HREF_OVERRIDE": href_override,
+        "SCHOLAR_ENTRY": scholar_entry,
+        "SUMMARY":       escape_latex(content["summary"]),
+        "SKILLS_LINES":  format_skills_lines(content["skills"]),
     }
 
     for i, pos in enumerate(experience, 1):
@@ -252,15 +262,16 @@ def apply_next_overflow_fix(content: dict) -> bool:
     return False
 
 
-def render(content: dict, output_dir: str, template_path: str) -> str:
+def render(content: dict, output_dir: str, template_path: str, no_links: bool = False) -> str:
     """
     Fill template, compile to PDF, enforce 2-page budget via overflow loop.
     Returns the path to the final PDF.
     """
     Path(output_dir).mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    tex_filename = f"resume_{timestamp}.tex"
-    pdf_filename = f"resume_{timestamp}.pdf"
+    suffix = "_nolinks" if no_links else ""
+    tex_filename = f"resume_{timestamp}{suffix}.tex"
+    pdf_filename = f"resume_{timestamp}{suffix}.pdf"
     tex_path = str(Path(output_dir).resolve() / tex_filename)
     pdf_path = str(Path(output_dir).resolve() / pdf_filename)
     output_dir_abs = str(Path(output_dir).resolve())
@@ -268,7 +279,7 @@ def render(content: dict, output_dir: str, template_path: str) -> str:
     final_pdf = pdf_path
 
     for attempt in range(12):
-        placeholders = build_placeholders(content)
+        placeholders = build_placeholders(content, no_links=no_links)
         tex_content = fill_template(template_path, placeholders)
         with open(tex_path, "w", encoding="utf-8") as f:
             f.write(tex_content)
