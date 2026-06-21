@@ -135,7 +135,7 @@ def build_placeholders(content: dict, no_links: bool = False) -> dict:
     experience = content["experience"]
 
     if no_links:
-        href_override = r"\renewcommand{\href}[2]{#2}"
+        href_override = r"\hypersetup{draft=true}"
         scholar_entry = ""
     else:
         href_override = ""
