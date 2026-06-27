@@ -461,6 +461,103 @@ def compact_bullets(content: dict, target_chars: int = 100) -> None:
 
 
 # ---------------------------------------------------------------------------
+# JD match scoring
+# ---------------------------------------------------------------------------
+
+def score_match(
+    jd_data: dict,
+    skills_data: dict,
+    experience_data: dict,
+    projects_data: dict,
+) -> dict:
+    """
+    Rule-based: count how many JD keywords appear in skills.json tags or profile bullets.
+    Returns dict with (hits, misses) tuples per category.
+    """
+    known_tags  = _all_known_tags(skills_data)
+    profile_txt = _profile_text(experience_data, projects_data)
+
+    def is_matched(term: str) -> bool:
+        return term in known_tags or term in profile_txt
+
+    tech   = [t.lower() for t in jd_data.get("tech_keywords",   [])]
+    domain = [t.lower() for t in jd_data.get("domain_keywords", [])]
+    soft   = [t.lower() for t in jd_data.get("soft_keywords",   [])]
+
+    return {
+        "tech":   ([t for t in tech   if     is_matched(t)], [t for t in tech   if not is_matched(t)]),
+        "domain": ([t for t in domain if     is_matched(t)], [t for t in domain if not is_matched(t)]),
+        "soft":   ([t for t in soft   if     is_matched(t)], [t for t in soft   if not is_matched(t)]),
+    }
+
+
+def _print_match_score(match: dict) -> None:
+    def row(label, hits, misses):
+        matched  = len(hits)
+        total    = matched + len(misses)
+        pct      = round(matched / total * 100) if total else 0
+        miss_str = f"  missing: {', '.join(misses)}" if misses else ""
+        return f"  {label:<18}{matched:>2} / {total:<2} ({pct:>3}%){miss_str}"
+
+    t_hits, t_miss = match["tech"]
+    d_hits, d_miss = match["domain"]
+    s_hits, s_miss = match["soft"]
+
+    total_matched = len(t_hits) + len(d_hits) + len(s_hits)
+    total         = total_matched + len(t_miss) + len(d_miss) + len(s_miss)
+    pct           = round(total_matched / total * 100) if total else 0
+
+    if   pct >= 80: verdict = "Strong fit"
+    elif pct >= 60: verdict = "Good fit"
+    elif pct >= 40: verdict = "Moderate fit"
+    else:           verdict = "Weak fit"
+
+    print("\n[Match Score]")
+    if t_hits or t_miss:
+        print(row("Tech keywords:", t_hits, t_miss))
+    if d_hits or d_miss:
+        print(row("Domain:", d_hits, d_miss))
+    if s_hits or s_miss:
+        print(row("Soft skills:", s_hits, s_miss))
+    print(f"  {'Overall:':<18}{total_matched:>2} / {total:<2} ({pct:>3}%) — {verdict}")
+
+
+def _assess_match_llm(jd_text: str, identity: dict, experience_data: dict) -> None:
+    """LLM-based semantic fit narrative using Haiku (low cost)."""
+    import anthropic
+    client = anthropic.Anthropic()
+
+    exp_summary = "\n".join(
+        f"- {p['title']} at {p['company']}: "
+        + "; ".join(list(p["bullets"].values())[0][:2])
+        for p in experience_data["positions"]
+    )
+    name = identity.get("name", "Candidate")
+
+    prompt = (
+        f"You are evaluating a job application fit.\n\n"
+        f"Candidate: {name}\n"
+        f"Background summary:\n{exp_summary}\n\n"
+        f"Job Description (excerpt, first 1500 chars):\n{jd_text[:1500]}\n\n"
+        "In 2-3 sentences, assess the semantic fit: where the candidate is strong, "
+        "where there are gaps, and an overall verdict (Strong / Good / Moderate / Weak fit). "
+        "Be specific. Output the verdict label on its own line at the end, e.g.: Verdict: Good fit"
+    )
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = response.content[0].text.strip()
+        print("\n[Match Score — LLM Assessment]")
+        for line in text.splitlines():
+            print(f"  {line}")
+    except Exception as e:
+        print(f"[WARNING] LLM match assessment failed ({e}).")
+
+
+# ---------------------------------------------------------------------------
 # Skills policy check
 # ---------------------------------------------------------------------------
 
@@ -552,7 +649,7 @@ def _add_skill_to_json(skill: str, skills_data: dict) -> None:
 # Full pipeline
 # ---------------------------------------------------------------------------
 
-def run_pipeline(jd_text: str) -> dict:
+def run_pipeline(jd_text: str, match_llm: bool = False) -> dict:
     """
     Execute the full content-selection pipeline.
     Prints [JD Analysis], [Content Selection], and [Skills Check] sections.
@@ -579,6 +676,14 @@ def run_pipeline(jd_text: str) -> dict:
     print(f"  Tech keywords: {', '.join(jd_data.get('tech_keywords', [])) or '—'}")
     print(f"  Domain:        {', '.join(jd_data.get('domain_keywords', [])) or '—'}")
     print(f"  Soft skills:   {', '.join(jd_data.get('soft_keywords', [])) or '—'}")
+
+    # Match score (rule-based always; LLM if requested)
+    match = score_match(jd_data, skills_data, experience_data, projects_data)
+    _print_match_score(match)
+    if match_llm and _has_valid_api_key():
+        _assess_match_llm(jd_text, identity, experience_data)
+    elif match_llm:
+        print("  [LLM assessment skipped — no valid API key]")
 
     # Step 2: Title + Summary
     title   = select_title(role_type, identity)

@@ -28,6 +28,11 @@ def main():
         action="store_true",
         help="Remove all hyperlinks from the PDF (for portals that block active contents).",
     )
+    parser.add_argument(
+        "--match-llm",
+        action="store_true",
+        help="Append an LLM-based semantic fit assessment below the rule-based match score.",
+    )
     args = parser.parse_args()
 
     # Resolve JD source: explicit flag → default jd.txt → stdin
@@ -65,7 +70,7 @@ def main():
         sys.exit(0)
 
     # Run the full content-selection pipeline
-    content = agent.run_pipeline(jd_text)
+    content = agent.run_pipeline(jd_text, match_llm=args.match_llm)
 
     # Compile to PDF
     print()
